@@ -19,9 +19,12 @@ from pieces import Pawn, Rook, Knight, Queen, King, Knight, Bishop, Unicorn
 from config import *
 import Ray
 
+import multiprocessing
 import numpy as np
 import sys
 import cv2
+
+import time
 
 class ChessboardDemo(ShowBase):
     def __init__(self):
@@ -63,6 +66,8 @@ class ChessboardDemo(ShowBase):
         self.gameover = False
         self.moves = []
 
+        self.ai_queue = multiprocessing.Queue()
+
         self.texture_black = self.loader.loadTexture(TEXTURE_BLACK)
         self.texture_white = self.loader.loadTexture(TEXTURE_WHITE)
         
@@ -76,6 +81,7 @@ class ChessboardDemo(ShowBase):
         self.dragging = False
 
         taskMgr.add(self.mouseover, 'mouseover')    # Check for mouse position
+        taskMgr.add(self.step, 'step')    # Check for mouse position
         self.accept("mouse1", self.left_click)      # Check for left click
         self.accept("mouse3", self.right_click)     # Check for right click
         self.accept('escape', sys.exit)             # Escape closes the window
@@ -84,11 +90,11 @@ class ChessboardDemo(ShowBase):
         # That way the camera can still move and project the chessboard
         # while the AI is thinking, instead of getting frozen in 1 frame
 
-        taskMgr.setupTaskChain('threadedChain1', numThreads = 1)
-        taskMgr.setupTaskChain('threadedChain2', numThreads = 1)
+        # taskMgr.setupTaskChain('threadedChain1', numThreads = 1)
+        # taskMgr.setupTaskChain('threadedChain2', numThreads = 1)
 
-        taskMgr.add(self.update_webcam, 'update_webcam', taskChain = 'threadedChain1', priority=1)
-        taskMgr.add(self.ai, 'ai', taskChain = 'threadedChain2', priority=2)
+        # taskMgr.add(self.update_webcam, 'update_webcam', taskChain = 'threadedChain1', priority=1)
+        # taskMgr.add(self.ai, 'ai', taskChain = 'threadedChain2', priority=2)
 
     def create_board(self):
         # C++ object containing the actual chessboard
@@ -155,28 +161,52 @@ class ChessboardDemo(ShowBase):
         # Register the ray as something that can cause collisions
         self.picker.addCollider(self.pickerNP, self.pq)
 
-    def update_webcam(self, task):
+    def say_hi(self):
+        time.sleep(1)
+        print('hi')
+    def say_bye(self):
+        time.sleep(10)
+        print('bye')
+
+
+    def step(self, task):
+        self.update_webcam()
+        # IF conditions are proper
+        if self.turn in self.ais and not self.gameover:
+
+            if self.can_move is True:
+                # Start the thinking process
+                # MULTIPROCESSING QUEUE HERE
+                # Keep checking it if we are waiting for a move
+                # Once we get the move, do it, move the pieces, change turn, set can_move to true, etc
+                self.can_move = False
+                recursions = 0
+                make_ai_think = multiprocessing.Process(target=ai, args=(self.board, self.ai_queue, recursions))
+                make_ai_think.start()
+            else:
+                if not self.ai_queue.empty():
+                    piece, move = self.ai_queue.get()
+                    self.can_move = False
+                    print(piece, move)
+
+                    self.move_pieces(piece, move)
+                    self.turn = 1 if self.turn == -1 else -1
+                    print(self.turn)
+
+                    new_array = np.ascontiguousarray(np.transpose(self.board_array))
+                    self.board.set_board(new_array, self.turn)
+
+                    self.moves = self.get_valid_moves()
+                    self.can_move = True
+                    print('AI DONE')
+
+        return Task.cont
+
+    def update_webcam(self):
+        self.can_get_image = False
         self.webcam_texture = self.webcam.step()
         self.ar2.analyze(self.webcam_texture)
-        return Task.cont
-
-    def ai(self, task):
-        if self.turn in self.ais and self.can_move and not self.gameover:
-            self.can_move = False
-
-            # Get the move from the c++ code
-            piece, move = self.board.best_move(1)
-
-            self.move_pieces(piece, move)
-            self.turn = 1 if self.turn == -1 else -1
-
-            new_array = np.ascontiguousarray(np.transpose(self.board_array))
-            self.board.set_board(new_array, self.turn)
-
-            self.moves = self.get_valid_moves()
-            self.can_move = True
-
-        return Task.cont
+        self.can_get_image = True
 
     def move_pieces(self, a, b, move_model=True):
         # Move the 3D model of the piece and update its square variable
@@ -383,6 +413,12 @@ class Webcam(DirectObject):
 
             return webcam_img, webcam_texture
 
+
+def ai(board, queue, recursions):
+    # Get the move from the c++ code
+    # In a separate function because it gets multiprocessed by the main function
+    piece, move = board.best_move(recursions)
+    queue.put((piece, move))
 
 if __name__ == '__main__':    
     demo = ChessboardDemo()

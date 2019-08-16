@@ -15,7 +15,7 @@ namespace moves {
 class Moves {
   public:
     Moves();
-    Moves(chess::Board* t_board, int t_x, int t_y, int t_z);
+    Moves(chess::Board* t_board, int t_turn, int t_x, int t_y, int t_z);
     ~Moves();
 
     bool getCheck();
@@ -33,9 +33,10 @@ class Moves {
 
   private:
     chess::Board* m_board;
-    std::vector<std::pair<std::vector<int>,std::vector<int>>> m_possibleMoves;
-    bool m_check = false;
+    int m_turn;
     int m_x, m_y, m_z;
+    bool m_check = false;
+    std::vector<std::pair<std::vector<int>,std::vector<int>>> m_possibleMoves;
 };
 }
 

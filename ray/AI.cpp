@@ -33,131 +33,110 @@ std::string AI::boardToString() {
 std::vector<std::pair<std::vector<int>,std::vector<int>>> AI::getMoves() {
   std::vector<std::pair<std::vector<int>,std::vector<int>>> moves;
   // get every single move we could make (including moves that would put our king in danger)
-  moves = m_chessboard.possibleMoves();
+  moves = m_chessboard.possibleMoves(m_chessboard.getTurn());
   // from those, exclude the ones that would put our king in danger
-  moves = m_chessboard.allowedMoves(moves);
+  moves = m_chessboard.allowedMoves(moves, m_chessboard.getTurn());
 
   return moves;
 }
 
 bool AI::isInCheck() {
-  // Make a copy of chessboard
-  Board newBoard = m_chessboard.copy();
-  // Check all possible moves for the enemy
-  newBoard.possibleMoves();
-  return newBoard.getCheck();
+  // Check all possible moves for the  (which sets the check variable)
+  m_chessboard.possibleMoves(m_startingTurn*-1);
+  return m_chessboard.getCheck();
 }
 
 std::pair<std::vector<int>,std::vector<int>> AI::bestMove(int t_maxRecursion) {
   m_maxRecursion = t_maxRecursion;
 
-  std::vector<int> piece = {0,0,0};
-  std::vector<int> move = {0,0,0};
+  MinimaxBranch bestIdea =
+  MinimaxBranch(std::numeric_limits<double>::max()*m_chessboard.getTurn()*-1, {0,0,0}, {0,0,0});
 
-  double worst;
-  if (m_chessboard.getTurn() == -1) {
-    worst = std::numeric_limits<double>::max();
-  } else {
-    worst = -std::numeric_limits<double>::max();
-  }
+  std::vector<std::pair<std::vector<int>,std::vector<int>>> moves = getMoves();
 
-  MinimaxBranch best_idea = MinimaxBranch(worst, piece, move);
+  for (auto pieceAndMove : moves) {
+    const std::vector<int> piece = pieceAndMove.first;
+    const std::vector<int> move = pieceAndMove.second;
 
-  std::vector<std::pair<std::vector<int>,std::vector<int>>> possibleMoves = getMoves();
-
-  for (auto piece_and_move : possibleMoves) {
-    piece = piece_and_move.first;
-    move = piece_and_move.second;
-
-    Board new_board = m_chessboard.copy(false);
-    // Get which kind of piece it is, since it's not specified
-    const int type = new_board.get(piece[0], piece[1], piece[2]);
-    const int type2 = new_board.get(move[0], move[1], move[2]);
-    new_board.set(move[0], move[1], move[2], type);
-    new_board.set(piece[0], piece[1], piece[2], 0);
-    // See all the possible moves for the other player, to see if he could attack the king
-    const double value = minimax(new_board, -std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), 0);
-    std::cout << "this one is " << value << std::endl;
-    const MinimaxBranch this_idea = MinimaxBranch(value, piece, move);
-    new_board.set(move[0], move[1], move[2], type2);
-    new_board.set(piece[0], piece[1], piece[2], type);
+    const int type = m_chessboard.get(piece[0], piece[1], piece[2]);
+    const int type2 = m_chessboard.get(move[0], move[1], move[2]);
+    m_chessboard.set(move[0], move[1], move[2], type);
+    m_chessboard.set(piece[0], piece[1], piece[2], 0);
+    const double value = minimax(m_chessboard.getTurn()*-1,
+      -std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), 0);
+    m_chessboard.set(move[0], move[1], move[2], type2);
+    m_chessboard.set(piece[0], piece[1], piece[2], type);
     
-    if ((m_chessboard.getTurn() == -1 && this_idea < best_idea)
-    || (m_chessboard.getTurn() == 1 && this_idea > best_idea)) {
-      std::cout << "and thats better than the last one" << std::endl;
-      best_idea = this_idea;
+    // If this one is better than the last best one
+    const MinimaxBranch thisIdea = MinimaxBranch(value, piece, move);
+    if ((m_chessboard.getTurn() == -1 && thisIdea < bestIdea)
+    || (m_chessboard.getTurn() == 1 && thisIdea > bestIdea)) {
+      bestIdea = thisIdea;
     }
   }
-  return std::pair<std::vector<int>,std::vector<int>> {best_idea.getPiece(), best_idea.getMove()};
-
+  return std::pair<std::vector<int>,std::vector<int>> {bestIdea.getPiece(), bestIdea.getMove()};
 }
 
-double AI::minimax(Board t_board, double t_biggest, double t_smallest, int t_recursion_level) {
-  // std::vector<std::pair<std::vector<int>,std::vector<int>>> moves;
-
-  t_board.changeTurn();
+double AI::minimax(int t_turn, double t_biggest, double t_smallest, int t_recursionLevel) {
   // Get the moves for this board and player
-  const std::vector<std::pair<std::vector<int>,std::vector<int>>> moves = t_board.allowedMoves(t_board.possibleMoves());
+  const std::vector<std::pair<std::vector<int>,std::vector<int>>> moves
+  = m_chessboard.allowedMoves(m_chessboard.possibleMoves(t_turn), t_turn);
 
   if (moves.empty()) {
-    // The enemy cannot move, let's see if he is in check with my weird backwards functions
-    // that make me have to change the turn
-    t_board.changeTurn();
-    t_board.allowedMoves(t_board.possibleMoves());
-
-    if (t_board.getCheck()) {
-      // std::cout << "Found a checkmate\n";
-      return (9999-t_recursion_level*5)*t_board.getTurn();
+    m_chessboard.allowedMoves(m_chessboard.possibleMoves(t_turn*-1), t_turn*-1);
+    // This player cannot move, let's see if he is in check (checkmate) or not (draw)
+    if (m_chessboard.getCheck()) {
+      return (9999-t_recursionLevel*5)*t_turn*-1;
     } else {
-      // If it's a draw, give it 0 priority
       return 0;
     }
-  } else if (t_recursion_level >= m_maxRecursion){
-    return t_board.getValue();
+  } else if (t_recursionLevel >= m_maxRecursion) {
+    return m_chessboard.getValue();
 
-  } else if (t_board.getTurn() == 1) {
-    double max_eval = -std::numeric_limits<double>::max();
-    for (auto piece_and_move : moves) {
-      const std::vector<int> piece = piece_and_move.first;
-      const std::vector<int> move = piece_and_move.second;
+  } else if (t_turn == 1) {
+    double maxEval = -std::numeric_limits<double>::max();
 
-      Board new_board = t_board.copy(false);
+    for (auto pieceAndMove : moves) {
+      const std::vector<int> piece = pieceAndMove.first;
+      const std::vector<int> move = pieceAndMove.second;
+
       const int type = m_chessboard.get(piece[0], piece[1], piece[2]);
       const int type2 = m_chessboard.get(move[0], move[1], move[2]);
       m_chessboard.set(move[0], move[1], move[2], type);
       m_chessboard.set(piece[0], piece[1], piece[2], 0);
-      const double value = minimax(new_board, t_biggest, t_smallest, t_recursion_level+1);
+      const double value = minimax(t_turn*-1, t_biggest, t_smallest, t_recursionLevel+1);
       m_chessboard.set(move[0], move[1], move[2], type2);
       m_chessboard.set(piece[0], piece[1], piece[2], type);
-      max_eval = std::max(max_eval, value);
+      // Alpha-beta pruning
+      maxEval = std::max(maxEval, value);
       t_biggest = std::max(t_biggest, value);
       if (t_smallest <= t_biggest) {
         break;
       }
     }
-    return max_eval;
+    return maxEval;
   } else {
-    double min_eval = std::numeric_limits<double>::max();
-    for (auto piece_and_move : moves) {
-      const std::vector<int> piece = piece_and_move.first;
-      const std::vector<int> move = piece_and_move.second;
+    double minEval = std::numeric_limits<double>::max();
 
-      Board new_board = t_board.copy(false);
+    for (auto pieceAndMove : moves) {
+      const std::vector<int> piece = pieceAndMove.first;
+      const std::vector<int> move = pieceAndMove.second;
+
       const int type = m_chessboard.get(piece[0], piece[1], piece[2]);
       const int type2 = m_chessboard.get(move[0], move[1], move[2]);
       m_chessboard.set(move[0], move[1], move[2], type);
       m_chessboard.set(piece[0], piece[1], piece[2], 0);
-      const double value = minimax(new_board, t_biggest, t_smallest, t_recursion_level+1);
+      const double value = minimax(t_turn*-1, t_biggest, t_smallest, t_recursionLevel+1);
       m_chessboard.set(move[0], move[1], move[2], type2);
       m_chessboard.set(piece[0], piece[1], piece[2], type);
-
-      min_eval = std::min(min_eval, value);
+      // Alpha-beta pruning
+      minEval = std::min(minEval, value);
       t_smallest = std::min(t_smallest, value);
       if (t_smallest <= t_biggest) {
         break;
       }
     }
-    return min_eval;
+    return minEval;
   }
 }
 

@@ -10,8 +10,8 @@ namespace moves {
 // Just constructors
 Moves::Moves() {}
 
-Moves::Moves(chess::Board* t_board, int t_x, int t_y, int t_z)
-: m_board(t_board), m_x(t_x), m_y(t_y), m_z(t_z) {}
+Moves::Moves(chess::Board* t_board, int t_turn, int t_x, int t_y, int t_z)
+: m_board(t_board), m_turn(t_turn), m_x(t_x), m_y(t_y), m_z(t_z) {}
 
 Moves::~Moves() {}
 
@@ -22,12 +22,13 @@ bool Moves::getCheck() {
 // Check if we can move to a square
 bool Moves::checkSquare(int t_x, int t_y, int t_z, bool can_attack, bool can_move) {
   // If the square is outside the chessboard, return false
-  if (t_x<0 || t_y<0 || t_z<0 || t_x>=m_board->getMaxX() || t_y>=m_board->getMaxY() || t_z>=m_board->getMaxZ()) {
+  if (t_x<0 || t_y<0 || t_z<0
+  || t_x>=m_board->getMaxX() || t_y>=m_board->getMaxY() || t_z>=m_board->getMaxZ()) {
     return false;
   }
 
   // If there is an enemy (and we can attack with this move)
-  if (m_board->getTurn()*m_board->get(t_x,t_y,t_z) < 0 && can_attack==true) {
+  if (m_turn*m_board->get(t_x,t_y,t_z) < 0 && can_attack==true) {
     m_possibleMoves.push_back({std::vector<int> {m_x, m_y, m_z}, std::vector<int> {t_x,t_y,t_z}});
 
     // If the enemy is a king, we set CHECK to TRUE
@@ -66,7 +67,7 @@ void Moves::checkLine(int t_x, int t_y, int t_z, int t_moveX, int t_moveY, int t
 
 
 std::vector<std::pair<std::vector<int>,std::vector<int>>> Moves::pawnMoves() {
-  int turn = (*m_board).getTurn();
+  const int turn = m_turn;
 
   // MOVING FORWARD (CAN'T ATTACK ON THIS MOVE)
   if (checkSquare(m_x, m_y+1*turn, m_z, false)) {

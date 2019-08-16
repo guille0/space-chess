@@ -1,6 +1,6 @@
 from pandac.PandaModules import loadPrcFileData
-loadPrcFileData('', 'win-size 640 480') # Window size
-loadPrcFileData('', 'win-fixed-size #t') # The window is a fixed size
+loadPrcFileData('', 'win-size 640 480')     # Window size
+loadPrcFileData('', 'win-fixed-size #t')    # Window is a fixed size
 loadPrcFileData('', 'textures-auto-power-2 1')
 loadPrcFileData('', 'textures-power-2 up')
 loadPrcFileData('', 'load-file-type p3assimp')
@@ -13,7 +13,6 @@ from panda3d.core import CardMaker, Texture, PTAUchar, CPTAUchar, BitMask32
 from panda3d.vision import ARToolKit
 from direct.showbase.DirectObject import DirectObject
 from direct.task.Task import Task
-from direct.stdpy import threading
 
 from pieces import create_piece
 from config import *
@@ -25,6 +24,7 @@ import sys
 import cv2
 
 import time
+
 
 class ChessboardDemo(ShowBase):
     def __init__(self):
@@ -296,6 +296,7 @@ class ChessboardDemo(ShowBase):
         else:
             self.check = 0
             if not moves:
+                self.gameover = True
                 print('DRAW')
 
         return moves

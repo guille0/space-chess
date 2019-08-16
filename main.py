@@ -15,7 +15,7 @@ from direct.showbase.DirectObject import DirectObject
 from direct.task.Task import Task
 from direct.stdpy import threading
 
-from pieces import Pawn, Rook, Knight, Queen, King, Knight, Bishop, Unicorn
+from pieces import create_piece
 from config import *
 import Ray
 
@@ -45,28 +45,24 @@ class ChessboardDemo(ShowBase):
         alight = AmbientLight('ambientLight')
         alight.setColor(Vec4(0.4, 0.4, 0.4, 1))
         alightNP = render.attachNewNode(alight)
-
         dlight = DirectionalLight('directionalLight')
-        dlight.setDirection(Vec3(-1, 1, -1)) # (towards right-back-bottom; should only illuminate front/left/top )
+        dlight.setDirection(Vec3(-1, 1, -1))
         alight.setColor(Vec4(0.4, 0.4, 0.4, 1))
         dlightNP = render.attachNewNode(dlight)
-
         render.setLightOff()
         render.setLight(alightNP)
         render.setLight(dlightNP)
 
-        # human/AI
+        # Setting up players
         self.humans = HUMANS
         self.ais = AIS
-        self.can_move = True
+        self.ai_queue = multiprocessing.Queue()
         # 1 = white, -1 = black
         self.turn = 1
         # 0 = no check, 1 = white, -1 = black
         self.check = 0
+        self.can_move = True
         self.gameover = False
-        self.moves = []
-
-        self.ai_queue = multiprocessing.Queue()
 
         self.texture_black = self.loader.loadTexture(TEXTURE_BLACK)
         self.texture_white = self.loader.loadTexture(TEXTURE_WHITE)
@@ -80,27 +76,17 @@ class ChessboardDemo(ShowBase):
         # Piece we are currently selecting
         self.dragging = False
 
-        taskMgr.add(self.mouseover, 'mouseover')    # Check for mouse position
-        taskMgr.add(self.step, 'step')    # Check for mouse position
-        self.accept("mouse1", self.left_click)      # Check for left click
-        self.accept("mouse3", self.right_click)     # Check for right click
-        self.accept('escape', sys.exit)             # Escape closes the window
-
-        # We thread the webcam updating and the AI thinking
-        # That way the camera can still move and project the chessboard
-        # while the AI is thinking, instead of getting frozen in 1 frame
-
-        # taskMgr.setupTaskChain('threadedChain1', numThreads = 1)
-        # taskMgr.setupTaskChain('threadedChain2', numThreads = 1)
-
-        # taskMgr.add(self.update_webcam, 'update_webcam', taskChain = 'threadedChain1', priority=1)
-        # taskMgr.add(self.ai, 'ai', taskChain = 'threadedChain2', priority=2)
+        # Events
+        taskMgr.add(self.update_webcam, 'cam')
+        taskMgr.add(self.ai_move, 'ai')
+        taskMgr.add(self.mouseover, 'mouseover')
+        self.accept("mouse1", self.left_click)
+        self.accept("mouse3", self.right_click)
+        self.accept('escape', sys.exit)     # Escape closes the window
 
     def create_board(self):
         # C++ object containing the actual chessboard
         self.board = Ray.Chess_AI(np.ascontiguousarray(np.array(BOARD)), self.turn, PAWN_2STEP)
-        if TEST is True:
-            self.board.print_board()
 
         # Array containing the piece objects we are going to draw
         self.board_array = np.transpose(np.array(BOARD))
@@ -112,21 +98,8 @@ class ChessboardDemo(ShowBase):
         for z in range(max_z):
             for y in range(max_y):
                 for x in range(max_x):
-                    for player in (-1, 1):
-                        if self.board_array[x,y,z] == 1*player:
-                            self.draw_pieces[x,y,z] = Pawn(player, [x,y,z], self)
-                        if self.board_array[x,y,z] == 2*player:
-                            self.draw_pieces[x,y,z] = Rook(player, [x,y,z], self)
-                        if self.board_array[x,y,z] == 3*player:
-                            self.draw_pieces[x,y,z] = Knight(player, [x,y,z], self)
-                        if self.board_array[x,y,z] == 4*player:
-                            self.draw_pieces[x,y,z] = Bishop(player, [x,y,z], self)
-                        if self.board_array[x,y,z] == 5*player:
-                            self.draw_pieces[x,y,z] = Queen(player, [x,y,z], self)
-                        if self.board_array[x,y,z] == 6*player:
-                            self.draw_pieces[x,y,z] = King(player, [x,y,z], self)
-                        if self.board_array[x,y,z] == 7*player:
-                            self.draw_pieces[x,y,z] = Unicorn(player, [x,y,z], self)
+                    if self.board_array[x,y,z] != 0:
+                        self.draw_pieces[x,y,z] = create_piece(self.board_array[x,y,z], [x,y,z], self)
 
                     # Load, parent, color, and position the model (a single square polygon)
                     self.draw_squares[x,y,z] = loader.loadModel("models/square")
@@ -161,52 +134,52 @@ class ChessboardDemo(ShowBase):
         # Register the ray as something that can cause collisions
         self.picker.addCollider(self.pickerNP, self.pq)
 
-    def say_hi(self):
-        time.sleep(1)
-        print('hi')
-    def say_bye(self):
-        time.sleep(10)
-        print('bye')
-
-
-    def step(self, task):
-        self.update_webcam()
-        # IF conditions are proper
+    def ai_move(self, task):
         if self.turn in self.ais and not self.gameover:
-
             if self.can_move is True:
                 # Start the thinking process
-                # MULTIPROCESSING QUEUE HERE
-                # Keep checking it if we are waiting for a move
-                # Once we get the move, do it, move the pieces, change turn, set can_move to true, etc
                 self.can_move = False
-                recursions = 0
+                recursions = 1
+                if len(self.moves) < 30:
+                    recursions = 2
+                if len(self.moves) < 12:
+                    recursions = 3
+                
+                if TEST is True:
+                    print(f'doing {recursions} recursions')
+                    self.start = time.time()
+
                 make_ai_think = multiprocessing.Process(target=ai, args=(self.board, self.ai_queue, recursions))
                 make_ai_think.start()
             else:
+                # The AI function will put the move in this queue when it figures it out
                 if not self.ai_queue.empty():
+                    if TEST is True:
+                        print(f'Took {time.time()-self.start}.')
                     piece, move = self.ai_queue.get()
                     self.can_move = False
-                    print(piece, move)
 
                     self.move_pieces(piece, move)
                     self.turn = 1 if self.turn == -1 else -1
-                    print(self.turn)
 
                     new_array = np.ascontiguousarray(np.transpose(self.board_array))
                     self.board.set_board(new_array, self.turn)
-
+                    # This hides the check on the player's king if there was one
+                    self.hide_possible_moves()
                     self.moves = self.get_valid_moves()
                     self.can_move = True
-                    print('AI DONE')
+
+                    if TEST is True:
+                        print('AI moved')
 
         return Task.cont
 
-    def update_webcam(self):
+    def update_webcam(self, task):
         self.can_get_image = False
         self.webcam_texture = self.webcam.step()
         self.ar2.analyze(self.webcam_texture)
         self.can_get_image = True
+        return Task.cont
 
     def move_pieces(self, a, b, move_model=True):
         # Move the 3D model of the piece and update its square variable
@@ -279,8 +252,6 @@ class ChessboardDemo(ShowBase):
                         # Moving the object
                         new_array = np.ascontiguousarray(np.transpose(self.board_array))
                         self.board.set_board(new_array, self.turn)
-                        if TEST is True:
-                            self.board.print_board()
 
                         self.hide_possible_moves()
 
@@ -294,23 +265,19 @@ class ChessboardDemo(ShowBase):
                 self.dragging = False
                 self.square_default_color(tmp)
 
-            # SELECTING PIECE (this goes after moving piece)
+            # SELECTING PIECE
             if self.hiSq is not False:
                 # If we pick the piece of the side whose turn it is
-                # if TEST is True:
-                #     print(self.hiSq)
                 if self.turn * self.board_array[self.hiSq[0],self.hiSq[1],self.hiSq[2]] > 0:
-                    # Hide the green/red squares showing where we can move
+                    # Hide the old green/red squares showing where we could move
                     self.hide_possible_moves()
-                    # We select it
+                    # Select it
                     self.dragging = self.hiSq
                     self.show_possible_moves()
 
     def get_valid_moves(self):
         moves = self.board.get_moves()
         check_found = self.board.is_in_check()
-        if TEST is True:
-            print(moves)
         
         if check_found is True:
             self.check = self.turn

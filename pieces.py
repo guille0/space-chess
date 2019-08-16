@@ -2,6 +2,24 @@ import numpy as np
 from config import *
 
 
+def create_piece(piece, position, showbase):
+    player = 1 if piece > 0 else -1
+    piece = abs(piece)
+    if piece == 1:
+        return Pawn(player, position, showbase)
+    elif piece == 2:
+        return Rook(player, position, showbase)
+    elif piece == 3:
+        return Knight(player, position, showbase)
+    elif piece == 4:
+        return Bishop(player, position, showbase)
+    elif piece == 5:
+        return Queen(player, position, showbase)
+    elif piece == 6:
+        return King(player, position, showbase)
+    elif piece == 7:
+        return Unicorn(player, position, showbase)
+
 class Piece(object):
     def __init__(self, player, position, showbase=None):
         self.showbase = showbase
@@ -24,7 +42,6 @@ class Piece(object):
     def move(self, position):
         self.position = position
         self.obj.setPos(square_position(*position, BOARD_SIZE))
-
 
 class Pawn(Piece):
     model = MODEL_PAWN

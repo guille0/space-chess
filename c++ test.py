@@ -66,17 +66,24 @@ oldarray = np.array([
 
 array = np.array([
   [
-   [ 0, 0, 0,6],
+   [ 0, 0, 0, 6],
+   [ 0, 2, 0, 2],
    [ 0, 0, 0, 0],
-   [ 0, -2, 0, 0],
-   [ 0, -6, -2, 0],
+   [-6,-3, 0, 0],
   ],
  ])
-
-guy = Ray.Chess_AI(np.ascontiguousarray(array), -1, False)
+array = np.array([
+         [
+          [-6, 0, 0, 0, 0, 6],
+          [-4, 0,-1, 0, 0 ,0],
+          [ 0, 0, 0, 0, 3 ,0],
+          [ 0, 0,-3, 0, 0 ,0],
+         ],
+        ])
+guy = Ray.Chess_AI(np.ascontiguousarray(array), 1, False)
 
 moves = guy.get_moves()
-print(guy.best_move(2))
+print(guy.best_move(1))
 
 if not moves:
   if check:

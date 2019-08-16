@@ -190,10 +190,10 @@ CLASSIC_BOARD = [
 
 
 # NOTE: PAWN_2STEP is whether the pawn can take 2 steps if it's on the second line (bool)
-RAUMSCHACH = [RAUMSCHACH_BOARD, RAUMSCHACH_PAWN_2STEP]
-SMALL_RAUMSCHACH = [SMALL_RAUMSCHACH_BOARD, SMALL_RAUMSCHACH_PAWN_2STEP]
-CARD = [CARD_BOARD, CARD_PAWN_2STEP]
-CLASSIC = [CLASSIC_BOARD, CLASSIC_PAWN_2STEP]
+RAUMSCHACH = (RAUMSCHACH_BOARD, RAUMSCHACH_PAWN_2STEP)
+SMALL_RAUMSCHACH = (SMALL_RAUMSCHACH_BOARD, SMALL_RAUMSCHACH_PAWN_2STEP)
+CARD = (CARD_BOARD, CARD_PAWN_2STEP)
+CLASSIC = (CLASSIC_BOARD, CLASSIC_PAWN_2STEP)
 
 
 TEST_PAWN_2STEP = True
@@ -204,17 +204,23 @@ TEST_BOARD = [
           [ 0, 0,-2,-2],
           [ 0, 0, 0, 0],
          ],
+         [
+          [ 0, 1, 6, 0],
+          [ 0, 0, 0, 0],
+          [ 0, 0,-2,-2],
+          [ 0, 0, 0, 0],
+         ],
         ]
 
-TEST = [TEST_BOARD, TEST_PAWN_2STEP]
+TEST = (TEST_BOARD, TEST_PAWN_2STEP)
 
 # Edit gamemode here
 GAMEMODE = SMALL_RAUMSCHACH
 
 # Edit players here
-HUMANS = [1]
-AIS = [-1]
+HUMANS = (1, )
+AIS = (-1, )
 
 BOARD, PAWN_2STEP = GAMEMODE
 BOARD_SIZE = (len(BOARD[0][0]), len(BOARD[0]), len(BOARD))
-TEST = False
+TEST = True
